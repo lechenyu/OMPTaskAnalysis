@@ -1,0 +1,5 @@
+set(TASK_ANALYSIS "ompta")
+set(TASK_ANALYSIS_SRC "task-analysis.cpp")
+add_library(${TASK_ANALYSIS} SHARED ${TASK_ANALYSIS_SRC})
+target_include_directories(${TASK_ANALYSIS} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+install(TARGETS ${TASK_ANALYSIS} DESTINATION lib)
