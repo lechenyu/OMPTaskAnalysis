@@ -6,11 +6,16 @@ int fib(int n) {
     return n;
   }
   int partial_1, partial_2;
-  #pragma omp task shared(partial_1)
-  partial_1 = fib(n - 1);
-  #pragma omp task shared(partial_2)
-  partial_2 = fib(n - 2);
-  #pragma omp taskwait 
+
+  #pragma omp taskgroup
+  {
+    #pragma omp task shared(partial_1)
+    partial_1 = fib(n - 1);
+
+    #pragma omp task shared(partial_2)
+    partial_2 = fib(n - 2);
+  }
+
   return partial_1 + partial_2;
 }
 
@@ -19,7 +24,7 @@ int main(int argc, char *argv[]) {
     std::cout << "fib <param...>" << std::endl;
     return 0;
   }
-  #pragma omp parallel
+  #pragma omp parallel num_threads(2)
   {
     #pragma omp single
     {
