@@ -26,6 +26,7 @@ tree_node* newtreeNode()
     node->corresponding_task_id = -2;
     node->number_of_child = 0;
     node->is_parent_nth_child = 0;
+    node->preceeding_taskwait = -1;
 
     node->index = node_index;
     node_index ++;
@@ -66,6 +67,7 @@ tree_node* insert_tree_node(enum node_type nodeType, tree_node *parent){
         }
         else{
             node->parent->children_list_tail->next_sibling = node;
+            node->preceeding_taskwait = node->parent->children_list_tail->preceeding_taskwait;
             node->parent->children_list_tail = node;
         }   
     }
@@ -100,6 +102,7 @@ tree_node* insert_leaf(tree_node *task_node){
     }
     else{
         task_node->children_list_tail->next_sibling = new_step;
+        new_step->preceeding_taskwait = task_node->children_list_tail->preceeding_taskwait;
         task_node->children_list_tail = new_step;
     }
 
@@ -174,6 +177,7 @@ static void ompt_ta_parallel_begin(
   const void *codeptr_ra
 )
 {
+  assert(encountering_task_data->ptr != NULL);
   parallel_data->ptr = encountering_task_data->ptr;
 }
 
@@ -210,7 +214,7 @@ static void ompt_ta_implicit_task(
   }
   else{
     if(endpoint == ompt_scope_begin){
-
+      assert(parallel_data->ptr != NULL);
       // A. Get encountering_task information
       task_t* current_task = (task_t*) parallel_data->ptr;
       tree_node* current_task_node = current_task->node_in_dpst;
@@ -266,6 +270,7 @@ static void ompt_ta_sync_region(
   const void *codeptr_ra)
 {
   if(kind == ompt_sync_region_taskgroup && endpoint == ompt_scope_begin){
+    assert(task_data->ptr != NULL);
     printf("taskgroup region begins \n");
 
     task_t* current_task = (task_t*) task_data->ptr;
@@ -288,11 +293,27 @@ static void ompt_ta_sync_region(
   }
   else if (kind == ompt_sync_region_taskgroup && endpoint == ompt_scope_end )
   {
+    assert(task_data->ptr != NULL);
     printf("taskgroup region ends \n");
 
     // Set current task's current_finish to null
     task_t* current_task = (task_t*) task_data->ptr;
     current_task->current_finish = NULL;
+  }
+  else if(kind == ompt_sync_region_taskwait && endpoint == ompt_scope_begin){
+    assert(task_data->ptr != NULL);
+    task_t* current_task = (task_t*) task_data->ptr;
+
+    // insert a single node (type STEP), mark this as a taskwait step
+    tree_node* new_taskwait_node;
+    if(current_task->current_finish == NULL){
+      new_taskwait_node = insert_tree_node(STEP, current_task->node_in_dpst);
+    }
+    else{
+      new_taskwait_node = insert_tree_node(STEP, current_task->current_finish);
+    }
+    new_taskwait_node->preceeding_taskwait = new_taskwait_node->is_parent_nth_child;
+
   }
   
 }
@@ -303,7 +324,6 @@ static void ompt_ta_task_create(ompt_data_t *encountering_task_data,
                                 ompt_data_t *new_task_data, int flags,
                                 int has_dependences, const void *codeptr_ra) 
 {
-    // uint64_t tid = ompt_get_thread_data()->value;
   assert(encountering_task_data->ptr != NULL);
 
   // A. Get encountering_task information
@@ -328,7 +348,6 @@ static void ompt_ta_task_create(ompt_data_t *encountering_task_data,
     insert_leaf(new_task_node->parent);
     insert_leaf(new_task_node);
     new_task_node->corresponding_task_id = task_id_counter;
-
 
   // C. Update task data
     task_t* ti = (task_t*) malloc(sizeof(task_t));

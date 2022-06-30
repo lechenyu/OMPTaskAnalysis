@@ -13,6 +13,7 @@ typedef struct tree_node{
     int depth;
     int number_of_child;
     int is_parent_nth_child;
+    int preceeding_taskwait;
     struct tree_node *parent;
     struct tree_node *children_list_head;
     struct tree_node *children_list_tail;
