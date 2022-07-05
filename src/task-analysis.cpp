@@ -4,10 +4,11 @@
 #include <iostream>
 #include <omp-tools.h>
 #include <assert.h>
+#include <vector>
 
 struct dpst DPST;
 
-char node_char[5] = {'R','F','A','f','S'};
+char node_char[6] = {'R','F','A','f','S','W'};
 static int node_index = 0;
 
 
@@ -113,8 +114,108 @@ tree_node* insert_leaf(tree_node *task_node){
 }
 
 
+/**
+ * @brief  check if node1 precedes node2 in dpst
+ * @param  node1: previous step node
+ * @param  node2: current step node
+ * @retval true if node1 precdes node2 by tree edges 
+ */
+bool precede_dpst(tree_node* node1, tree_node* node2){
+  bool node1_precede_node2 = true;
+  bool node1_not_precede_node2 = false;
+
+    if(node1->parent->index == node2->parent->index){
+        // node1 and node2 are step nodes with same parent
+        if(node1->is_parent_nth_child <= node2->is_parent_nth_child){
+          return node1_precede_node2;
+        }
+        else{
+          return node1_not_precede_node2;
+        }
+    }
+    
+    // need to guarantee prev_node is to the left of current_node
+    tree_node* node1_last_node;
+    tree_node* node2_last_node;
+
+    while (node1->depth != node2->depth)
+    {
+        node1_last_node = node1;
+        node2_last_node = node2;
+        if (node1->depth > node2->depth)
+        {
+            node1 = node1->parent;
+        }
+        else{
+            node2 = node2->parent;
+        }
+    }
+
+    while(node1->index != node2->index){
+        node1_last_node = node1;
+        node2_last_node = node2;
+        node1 = node1->parent;
+        node2 = node2->parent;
+    }; // end
+
+    if(node1_last_node->is_parent_nth_child < node2_last_node->is_parent_nth_child){
+        // node1 is to the left of node 2
+        if(
+             (node1_last_node->this_node_type == ASYNC && node2_last_node->preceeding_taskwait < 0)
+          || (node1_last_node->this_node_type == ASYNC && node2_last_node->preceeding_taskwait < node1_last_node->is_parent_nth_child)
+        ){
+          return node1_not_precede_node2;
+        }
+        else{
+            return node1_precede_node2;
+        }
+    }
+
+    // node 1 is to the right of node 2
+    // return false because "node1 doesn't precede node2 by DPST"
+    return node1_not_precede_node2;
+}
+
+
 int get_dpst_height(){
     return DPST.height;
+}
+
+
+
+tree_node* search_node_by_index(int index){
+  std::vector<tree_node*> node_vector;
+  node_vector.push_back(DPST.root);
+
+  tree_node* node = NULL;
+
+  while(!node_vector.empty()){
+    node = node_vector.back();
+    if(node->index == index){
+      return node;
+    }
+
+    tree_node *child = node->children_list_head;
+    while (child != NULL)
+    {
+      node_vector.insert(node_vector.begin(),child);
+      child = child->next_sibling;
+    }
+
+    node_vector.pop_back();
+    
+  }
+
+  printf("Error: cannot find node with index %d \n", index);
+  assert(0);
+  return node;
+}
+
+
+bool precede_dpst_index(int a, int b){
+  tree_node* node1 = search_node_by_index(a);
+  tree_node* node2 = search_node_by_index(b);
+  return precede_dpst(node1,node2);
 }
 
 
@@ -208,7 +309,7 @@ static void ompt_ta_implicit_task(
 
       task_data->ptr = (void*) main_ti;
 
-      printDPST();
+      // printDPST();
     
     }
   }
@@ -271,7 +372,7 @@ static void ompt_ta_sync_region(
 {
   if(kind == ompt_sync_region_taskgroup && endpoint == ompt_scope_begin){
     assert(task_data->ptr != NULL);
-    printf("taskgroup region begins \n");
+    // printf("taskgroup region begins \n");
 
     task_t* current_task = (task_t*) task_data->ptr;
     tree_node* current_task_node = current_task->node_in_dpst;
@@ -294,7 +395,7 @@ static void ompt_ta_sync_region(
   else if (kind == ompt_sync_region_taskgroup && endpoint == ompt_scope_end )
   {
     assert(task_data->ptr != NULL);
-    printf("taskgroup region ends \n");
+    // printf("taskgroup region ends \n");
 
     // Set current task's current_finish to null
     task_t* current_task = (task_t*) task_data->ptr;
@@ -307,12 +408,15 @@ static void ompt_ta_sync_region(
     // insert a single node (type STEP), mark this as a taskwait step
     tree_node* new_taskwait_node;
     if(current_task->current_finish == NULL){
-      new_taskwait_node = insert_tree_node(STEP, current_task->node_in_dpst);
+      new_taskwait_node = insert_tree_node(TASKWAIT, current_task->node_in_dpst);
+      new_taskwait_node->preceeding_taskwait = new_taskwait_node->is_parent_nth_child;
+      insert_leaf(current_task->node_in_dpst);
     }
     else{
-      new_taskwait_node = insert_tree_node(STEP, current_task->current_finish);
+      new_taskwait_node = insert_tree_node(TASKWAIT, current_task->current_finish);
+      new_taskwait_node->preceeding_taskwait = new_taskwait_node->is_parent_nth_child;
+      insert_leaf(current_task->current_finish);
     }
-    new_taskwait_node->preceeding_taskwait = new_taskwait_node->is_parent_nth_child;
 
   }
   
@@ -391,6 +495,17 @@ static int ompt_ta_initialize(ompt_function_lookup_t lookup, int device_num,
 static void ompt_ta_finalize(ompt_data_t *tool_data) 
 {
   printDPST();
+
+  // taskwait reachability test
+  assert(precede_dpst_index(12,14));
+  assert(precede_dpst_index(6,14));
+  assert(precede_dpst_index(9,14));
+
+  // General reachability test
+  assert(!precede_dpst_index(12,16));
+  assert(precede_dpst_index(2,15));
+  assert(!precede_dpst_index(6,15));
+
 }
 
 

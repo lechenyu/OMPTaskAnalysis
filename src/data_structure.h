@@ -3,7 +3,8 @@ enum node_type{
     FINISH,
     ASYNC,
     FUTURE,
-    STEP
+    STEP,
+    TASKWAIT
 };
 
 typedef struct tree_node{
