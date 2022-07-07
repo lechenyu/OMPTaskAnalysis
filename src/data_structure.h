@@ -39,11 +39,20 @@ void update_node_parent(tree_node *node, tree_node* new_parent);
 
 extern struct dpst DPST;
 
+typedef struct finish_t{
+    tree_node* node_in_dpst;
+    finish_t* parent;
+} finish_t;
+
 typedef struct task_t{
   int id;
   int parent_id;
   tree_node* node_in_dpst;
-  tree_node* belong_to_finish;
-  tree_node* current_finish;
+  finish_t* belong_to_finish;
+  finish_t* current_finish;
 } task_t;
 
+
+// function declarations
+bool precede_dpst(tree_node* node1, tree_node* node2);
+bool precede_dpst_index(int a, int b);
