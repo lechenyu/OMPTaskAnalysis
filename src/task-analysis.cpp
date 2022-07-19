@@ -350,8 +350,7 @@ static void ompt_ta_implicit_task(
 {
   if(flags & ompt_task_initial){
     if(endpoint == ompt_scope_begin){
-
-      printf("initial task begins, should only appear once !! \n");
+      printf("OMPT! initial task begins, should only appear once !! \n");
 
       // DPST operation
       tree_node* root = insert_tree_node(ROOT,NULL);
@@ -369,7 +368,6 @@ static void ompt_ta_implicit_task(
       main_ti->current_finish = main_finish_placeholder;
 
       task_data->ptr = (void*) main_ti;
-    
     }
   }
   else{
@@ -382,13 +380,18 @@ static void ompt_ta_implicit_task(
       // ompt_data_t *task_data_2;
       // ompt_frame_t *task_frame_2;
       // ompt_data_t *parallel_data_2;
-      // int thread_num_2;
-      // int result = ompt_get_task_info(ancestor_level,&flags_2,&task_data_2,&task_frame_2,&parallel_data_2,&thread_num_2);
+      // int thread_num;
+
+      // int result = ompt_get_task_info(ancestor_level,&flags_2,&task_data_2,&task_frame_2,&parallel_data_2,&thread_num);
+
       // if(result == 2){
       //   task_t* task = (task_t*) parallel_data_2->ptr;
-      //   printf("current task node's index is %d \n", task->node_in_dpst->index);
-      //   task_t* same_task = (task_t*) task_data_2->ptr;
-      //   // printf("same task node's node index %d \n", same_task->node_in_dpst->index);
+      //   printf("OMPT! current task node's index is %d, the flag is %d, number of thread is %d \n", task->node_in_dpst->index, flags_2, thread_num);
+
+      //   // TODO: the following always fail, as the task_data is always NULL
+      //   // one possible explanation is that at this point, there is not active task, because the thread_num is always zero.
+      //   // task_t* same_task = (task_t*) task_data_2->ptr;
+      //   // printf("OMPT! same task node's node index %lu \n", task_data_2->value);
       // }
 
 
@@ -592,7 +595,7 @@ static int ompt_ta_initialize(ompt_function_lookup_t lookup, int device_num,
 
 static void ompt_ta_finalize(ompt_data_t *tool_data) 
 {
-  printDPST();
+  // printDPST();
 
   // // taskwait reachability test
   // assert(precede_dpst_index(12,17));
